@@ -98,52 +98,81 @@ This document explains the **entire Linux boot process** step by step. Every sta
 
 ---
 
-## 6. Mount Real Root Filesystem
+## 6. Init (systemd takes over)
 
-### Role:
+- After the kernel finishes loading (step 5), it looks for the very first **userspace process** to run.  
+- Traditionally this was `init`, but now on almost all modern Linux distros it’s **systemd**.  
+- This process is always assigned **PID = 1**, because it’s the first process.  
 
-* Kernel uses initramfs to:
+### Responsibilities of systemd:
+- Initialize the environment (set up what user-space needs).  
+- Mount additional filesystems (like `/proc`, `/sys`, swap, network filesystems).  
+- Start background services (**daemons**):  
+  - Networking  
+  - Printing  
+  - Logging  
+  - SSH server, etc.  
+- Manage **targets (runlevels)** → earlier `init` used runlevels (0–6), now `systemd` uses targets:  
+  - `multi-user.target` → like runlevel 3 (text-based login).  
+  - `graphical.target` → like runlevel 5 (GUI login).  
+  - `rescue.target` → single-user emergency mode.  
+- Stays alive in the background → **all other processes are its children**.  
 
-  * Detect SSD/NVMe.
-  * Mount the real root filesystem (`/`).
-* Once successful:
-
-  * Initramfs is discarded from RAM (to free memory).
-  * Control is handed over to `init` (first process).
-
-📍 **Root FS stored in:** SSD/HDD/NVMe (/, /home, /usr, etc.).
-
----
-
-## 7. Init/Systemd Stage
-
-### Role:
-
-* `init` (or modern `systemd`) is the **first userspace process**.
-* Responsibilities:
-
-  * Start all background services (daemons).
-  * Mount additional filesystems (/home, /var, etc.).
-  * Set up networking, logging, user sessions.
-  * Launch the login screen or desktop.
-
-📍 **Stored in:** SSD (/sbin/init or /lib/systemd/).  
-📤 **Runs in:** RAM.
+👉 **In short:** Kernel hands over to `systemd`, and `systemd` becomes the “master organizer” of user-space.  
 
 ---
 
-## 8. User Space (You Log In 🎉)
+## 7. Login Process
 
-* Finally, system reaches a point where you:
+Now the system is ready to accept a user.
 
-  * Get a text login (tty) OR graphical login (GDM, SDDM, LightDM).
-  * Enter username/password.
-  * Desktop environment or shell starts.
+### Two types of login:
 
-📍 **All apps stored in:** SSD/HDD/NVMe (/usr/bin, /usr/lib).  
-📤 **Executed from:** RAM.
+**1. Text Login (TTY)**  
+- Provided by the `getty` program.  
+- If you press `Ctrl + Alt + F1…F6`, you get **virtual terminals**.  
+- You log in by typing your **username** and **password**.  
+- After authentication (`/etc/passwd` and `/etc/shadow` are checked), it starts your **default shell** (usually Bash).  
+- Useful for servers or troubleshooting (because you don’t need graphics).  
+
+**2. GUI Login (Graphical Login Manager)**  
+- Provided by a **Display Manager** (e.g., GDM, LightDM, SDDM).  
+- Shows a graphical login screen.  
+- Once authenticated, it launches your **desktop environment** (GNOME, KDE, XFCE, etc.).  
+- GUI login still runs on top of text login (just automated and hidden).  
+
+👉 **Key point:** GUI is optional, TTY is fundamental. Even if GUI fails, you can always log in via TTY.  
 
 ---
+
+## 8. Shell
+
+After login, you don’t directly interact with the kernel. You interact through the **shell**.  
+
+- **Shell = command-line interpreter**.  
+- Examples: **Bash** (Bourne Again Shell), **Zsh**, **Fish**.  
+
+### Role of the shell:
+1. Takes your command (e.g., `ls -l`).  
+2. Parses it (splits into program + arguments).  
+3. Asks the kernel (via system calls) to execute.  
+4. Displays the result back to you.  
+
+- The shell is **not the kernel**, but a **middleman** between user and kernel.  
+- Analogy:  
+  - Kernel = *engine of the car*.  
+  - Shell = *steering wheel to control the engine*.  
+
+### Why shell matters?
+- Without a shell, you’d have to write machine code directly to talk to the kernel → impossible for normal users.  
+- Shell provides:  
+  - Commands  
+  - Scripting power   
+
+👉 This makes the system **usable and powerful** for both admins and developers.  
+
+---
+
 
 # 🧠 Summary Flow (Memory + Storage)
 
