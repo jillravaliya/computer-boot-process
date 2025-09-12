@@ -220,7 +220,7 @@ After login, you don’t directly interact with the kernel. You interact through
 8. Systemd launches services → login screen/desktop.  
 
 ✅ At this point → Linux is fully booted.
-```
+
 
 ---
 
