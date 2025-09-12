@@ -1,5 +1,4 @@
-# 🖥️ Linux Boot Process (From Power On → Login Screen)
-
+# 🖥️ Linux Boot Process 
 This document explains the **entire Linux boot process** step by step. Every stage is described with what it does, **where it lives** (ROM, RAM, SSD, etc.), and how it hands over control to the next stage.
 
 ---
@@ -222,3 +221,130 @@ After login, you don’t directly interact with the kernel. You interact through
 
 ✅ At this point → Linux is fully booted.
 ```
+
+---
+
+# 🖥️ From Power Button → Linux Desktop
+
+---
+
+## 🔹 Step 1. Firmware / VBIOS Init (0.0 – 0.5 sec)
+
+**Who’s in charge?**  
+- CPU microcode  
+- Motherboard UEFI firmware  
+- GPU’s VBIOS firmware  
+
+**What happens?**  
+- CPU wakes → executes UEFI firmware from flash ROM.  
+- UEFI runs **POST** (Power-On Self-Test): checks memory, CPU, keyboard, GPU.  
+- GPU wakes → its own **VBIOS firmware** runs.  
+- VBIOS sets up a **framebuffer** = tiny VRAM block + dumb scanout to monitor.  
+  - No 3D, no compositing.  
+  - Just: “draw pixels at this resolution.”  
+- Monitor EDID (spec sheet) read → firmware picks safe resolution (often 1024×768 or native).  
+
+**What you see:** motherboard/UEFI logo or vendor splash.  
+
+---
+
+## 🔹 Step 2. Bootloader (GRUB/systemd-boot) (0.5 – 1.5 sec)
+
+**Who’s in charge?**  
+- UEFI firmware jumps into bootloader from EFI partition.  
+
+**What happens?**  
+- Bootloader (GRUB/systemd-boot) runs in VBIOS framebuffer.  
+- Shows **simple text menu** or **bitmap logo** (still firmware graphics).  
+- Lets user select kernel/OS.  
+
+**What you see:** black screen with GRUB menu, or vendor logo + “press key to enter menu.”  
+
+---
+
+## 🔹 Step 3. Kernel Loads + KMS Takeover (1.5 – 2.5 sec)
+
+**Who’s in charge?**  
+- Linux kernel (just loaded into RAM).  
+
+**What happens?**  
+- Kernel probes PCIe bus → finds GPU.  
+- Loads **DRM driver** (`amdgpu`, `nouveau`, `i915`, etc.).  
+- **KMS (Kernel Mode Setting):**
+  - Reads monitor EDID.  
+  - Reprograms GPU pipeline: resolution, refresh, multiple monitors.  
+  - Allocates VRAM buffers.  
+- Firmware framebuffer → replaced by DRM framebuffer.  
+
+**What you see:**  
+- Brief flicker/blank → control switches firmware → kernel.  
+- Higher-res Ubuntu splash screen (purple background, logo).  
+
+---
+
+## 🔹 Step 4. Early Userland (Plymouth Splash) (2.5 – 4.0 sec)
+
+**Who’s in charge?**  
+- **initramfs** + early `systemd` services.  
+
+**What happens?**  
+- initramfs mounts real root filesystem.  
+- `plymouth` daemon runs → draws animated splash.  
+- Still DRM framebuffer → only **2D drawing**.  
+
+**What you see:** Ubuntu logo glowing / dots animation.  
+
+---
+
+## 🔹 Step 5. Display Manager (GDM, SDDM, LightDM) (4.0 – 6.0 sec)
+
+**Who’s in charge?**  
+- `systemd` → starts display manager service.  
+
+**What happens?**  
+- GDM starts **Wayland (or Xorg fallback)** server.  
+- GPU acceleration enabled (DRM + Mesa/OpenGL/Vulkan).  
+- **Compositor (Mutter)** begins:
+  - Windows, cursor, vsync, rendering pipeline.  
+- GDM shows **login greeter window** (mini GNOME session).  
+
+**What you see:** graphical login screen (username, password).  
+
+---
+
+## 🔹 Step 6. Desktop Session (6.0 – 9.0 sec)
+
+**Who’s in charge?**  
+- `gnome-session` + user’s `systemd --user` + **Mutter** compositor.  
+
+**What happens?**  
+- After login: `gnome-session` starts user services.  
+- Creates **cgroups** (CPU/mem sandbox).  
+- Mutter + Wayland now handle all drawing:
+  - Apps render into GPU buffers.  
+  - Compositor assembles them.  
+  - KMS scans out → monitor.  
+- GNOME Shell overlays UI (top bar, dock, animations).  
+
+**What you see:** full GNOME desktop, smooth animations, ready.  
+
+---
+
+## 🕒 Timing (SSD + Modern CPU/GPU, Ubuntu Case)
+
+- **0.0–0.5s** → Firmware init (UEFI + VBIOS splash)  
+- **0.5–1.5s** → GRUB menu  
+- **1.5–2.5s** → Kernel loads GPU driver, KMS takeover (screen flicker)  
+- **2.5–4.0s** → Plymouth splash animation  
+- **4.0–6.0s** → GDM login screen  
+- **6.0–9.0s** → Desktop session fully loaded  
+
+---
+
+## 💡 Big Picture
+
+Ubuntu logo → login page feels “instant,”  
+but really it’s a **relay race**:  
+
+**Firmware → Bootloader → Kernel+KMS → Plymouth → Display Manager → GNOME Session.**
+
